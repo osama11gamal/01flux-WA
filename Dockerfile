@@ -27,20 +27,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package*.json ./
 
 # The postinstall hook is a real file (scripts/postinstall.js), and `npm ci` fails outright when
-# a lifecycle script is missing — copy it BEFORE the install. The backport patcher is deliberately
-# still absent at this point, so that step cleanly no-ops here (the patchers only matter for the
-# production stage).
+# a lifecycle script is missing — copy it BEFORE the install. dashboard/ is deliberately still
+# absent at this point, so the hook cleanly no-ops here: the dashboard gets its OWN layer below,
+# so a registry stall invalidates only the tree that actually failed (they used to share one
+# 20+ minute layer).
 COPY scripts/postinstall.js ./scripts/
 
-# Copy the dashboard manifests TOO, so the hook above installs the dashboard dependencies in the
-# SAME cached layer as the root ones: this layer only rebuilds when a lockfile changes, instead of
-# re-downloading ~270 packages on every source edit (they used to sit behind `COPY . .`).
-COPY dashboard/package*.json ./dashboard/
-
-# NPM_CONFIG_INCLUDE propagates into the hook's nested `npm ci` (sanitizeEnv strips only the
-# allow-scripts vars), so the dashboard install also gets devDependencies even when a
-# NODE_ENV=production build env is present (see the --include=dev rationale below).
-ENV NPM_CONFIG_INCLUDE=dev
+# Tolerate flaky registry networks on PaaS builders: aggressive retries with long backoffs, and
+# a generous fetch timeout, so a stalled tarball download retries instead of wedging the layer.
+ENV NPM_CONFIG_FETCH_RETRIES=6 \
+    NPM_CONFIG_FETCH_RETRY_FACTOR=3 \
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
+    NPM_CONFIG_FETCH_TIMEOUT=600000
 
 # Install all dependencies INCLUDING devDependencies — the build needs them (`nest` from
 # @nestjs/cli, plus `vite`/`typescript` for the dashboard). `--include=dev` is REQUIRED, not
@@ -49,18 +48,20 @@ ENV NPM_CONFIG_INCLUDE=dev
 # variable, so docker-compose.yml's `NODE_ENV=${NODE_ENV:-production}` leaks NODE_ENV=production
 # into this stage and a bare `npm ci` would skip @nestjs/cli → `sh: 1: nest: not found` (exit 127).
 # (docker-compose.dev.yml hardcodes NODE_ENV=development, which is why the dev build never hit this.)
-# NOTE: no BuildKit cache mounts here — Railway's Metal builder rejects them (id-less mounts fail
-# with "missing an id argument", and even the documented s/<service-id> form fails with "missing
-# the cacheKey prefix"). Docker layer caching above gives the real win; npm's own download cost is
-# paid only when a lockfile changes.
-RUN npm ci --include=dev
+# --no-audit/--no-fund cut two registry round-trips that dominate slow-network builds.
+RUN npm ci --include=dev --no-audit --no-fund
+
+# Dashboard dependencies in their OWN layer (same rationale as above): keyed to
+# dashboard/package-lock.json alone, rebuilt independently of the root tree.
+COPY dashboard/package*.json ./dashboard/
+RUN npm --prefix dashboard ci --include=dev --no-audit --no-fund
 
 # Copy source code
 COPY . .
 
 # Build the API (dist/) and the dashboard SPA (dashboard/dist/). Both dependency trees were
-# installed ABOVE (root + hook-driven dashboard), before `COPY . .`, so changing source no longer
-# re-downloads any packages — this layer recompiles only.
+# installed ABOVE in their own cached layers (root + dashboard), before `COPY . .`, so changing
+# source no longer re-downloads any packages — this layer recompiles only.
 # Drop the incremental-build cache afterwards: it is pinned inside dist/ (so nest's deleteOutDir
 # wipes it with the output), and the production stage copies dist/ wholesale — it would otherwise
 # ship dead compiler metadata in every image.
@@ -202,7 +203,7 @@ COPY scripts/postinstall.js scripts/patch-wwebjs-201832.js scripts/wwebjs-201832
 # msgpackr-extract) are optional=true with runtime fallbacks. The patchers that DO
 # need to run are the explicit fatal invocations below; baileys' preinstall is only
 # a node-version check that the engines field enforces anyway.
-RUN npm ci --omit=dev --ignore-scripts \
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && node scripts/patch-wwebjs-201832.js \
     && node scripts/patch-wwebjs-newsletter-preview.js \
     && node scripts/patch-wwebjs-status.js \
