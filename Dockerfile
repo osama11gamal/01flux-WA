@@ -49,9 +49,11 @@ ENV NPM_CONFIG_INCLUDE=dev
 # variable, so docker-compose.yml's `NODE_ENV=${NODE_ENV:-production}` leaks NODE_ENV=production
 # into this stage and a bare `npm ci` would skip @nestjs/cli → `sh: 1: nest: not found` (exit 127).
 # (docker-compose.dev.yml hardcodes NODE_ENV=development, which is why the dev build never hit this.)
-# The cache mount keeps the npm download cache across builds on BuildKit-based builders (Railway).
-RUN --mount=type=cache,id=npm-builder,target=/root/.npm \
-    npm ci --include=dev
+# NOTE: no BuildKit cache mounts here — Railway's Metal builder rejects them (id-less mounts fail
+# with "missing an id argument", and even the documented s/<service-id> form fails with "missing
+# the cacheKey prefix"). Docker layer caching above gives the real win; npm's own download cost is
+# paid only when a lockfile changes.
+RUN npm ci --include=dev
 
 # Copy source code
 COPY . .
@@ -200,8 +202,7 @@ COPY scripts/postinstall.js scripts/patch-wwebjs-201832.js scripts/wwebjs-201832
 # msgpackr-extract) are optional=true with runtime fallbacks. The patchers that DO
 # need to run are the explicit fatal invocations below; baileys' preinstall is only
 # a node-version check that the engines field enforces anyway.
-RUN --mount=type=cache,id=npm-production,target=/root/.npm \
-    npm ci --omit=dev --ignore-scripts \
+RUN npm ci --omit=dev --ignore-scripts \
     && node scripts/patch-wwebjs-201832.js \
     && node scripts/patch-wwebjs-newsletter-preview.js \
     && node scripts/patch-wwebjs-status.js \
