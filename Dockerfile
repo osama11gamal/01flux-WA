@@ -61,11 +61,16 @@ COPY . .
 
 # Build the API (dist/) and the dashboard SPA (dashboard/dist/). Both dependency trees were
 # installed ABOVE in their own cached layers (root + dashboard), before `COPY . .`, so changing
-# source no longer re-downloads any packages — this layer recompiles only.
+# source no longer re-downloads any packages - this layer recompiles only.
+# The dashboard compiles with `vite build` DIRECTLY (not `npm run dashboard:build`): its `tsc -b`
+# type-check pass costs ~1-2 of the trial plan's 10-minute soft build budget here, and the SAME
+# check already gates every push through CI's Dashboard job (`npm run typecheck`) plus local dev.
 # Drop the incremental-build cache afterwards: it is pinned inside dist/ (so nest's deleteOutDir
-# wipes it with the output), and the production stage copies dist/ wholesale — it would otherwise
+# wipes it with the output), and the production stage copies dist/ wholesale - it would otherwise
 # ship dead compiler metadata in every image.
-RUN npm run build && npm run dashboard:build && rm -f dist/*.tsbuildinfo
+RUN npm run build \
+    && cd dashboard && npx vite build && cd .. \
+    && rm -f dist/*.tsbuildinfo
 
 # ===== Stage 2: Production =====
 # Same digest-pinned node:22-slim base as the builder stage.
