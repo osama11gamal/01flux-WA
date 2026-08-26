@@ -1,0 +1,13 @@
+apiVersion: v2
+name: 01flux-wa
+description: 01flux WA — WhatsApp API. Single-instance StatefulSet (see values.yaml replicaCount warning).
+type: application
+version: 0.1.20
+appVersion: '0.23.3'
+keywords:
+  - whatsapp
+  - 01flux-wa
+  - api
+home: https://github.com/rmyndharis/01flux-wa
+sources:
+  - https://github.com/rmyndharis/01flux-wa

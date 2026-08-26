@@ -1,0 +1,57 @@
+{
+    "name": "@rmyndharis/01flux-wa",
+    "version": "0.5.0",
+    "description": "Official JavaScript/TypeScript SDK for 01flux WA WhatsApp API Gateway",
+    "type": "module",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/cjs/index.d.ts",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/esm/index.d.ts",
+                "default": "./dist/esm/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/index.d.ts",
+                "default": "./dist/cjs/index.js"
+            }
+        }
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json',JSON.stringify({type:'commonjs'}))\"",
+        "prepublishOnly": "npm run build",
+        "dev": "tsc -p tsconfig.esm.json --watch",
+        "test": "tsc --noEmit && vitest run",
+        "test:watch": "vitest",
+        "smoke": "node scripts/smoke.mjs",
+        "typecheck": "tsc --noEmit"
+    },
+    "keywords": [
+        "whatsapp",
+        "api",
+        "sdk",
+        "01flux-wa",
+        "gateway"
+    ],
+    "author": "01flux WA Contributors",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rmyndharis/01flux-wa",
+        "directory": "sdk/javascript"
+    },
+    "engines": {
+        "node": ">=18"
+    },
+    "sideEffects": false,
+    "peerDependencies": {},
+    "devDependencies": {
+        "typescript": "^5.7.3",
+        "vitest": "^2.1.0"
+    }
+}

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "01flux-wa.fullname" . }}-headless
+  labels:
+    {{- include "01flux-wa.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "01flux-wa.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 2785
+      targetPort: http
