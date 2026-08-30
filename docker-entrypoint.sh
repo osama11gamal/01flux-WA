@@ -4,7 +4,7 @@
 set -e
 
 mkdir -p /app/data/sessions /app/data/media /app/data/plugins
-chown fluxwa:fluxwa /app/data
+chown -R fluxwa:fluxwa /app/data
 
 # Chromium leaves SingletonLock/SingletonSocket/SingletonCookie in each session profile and does
 # not remove them on an unclean shutdown; stale locks block the next launch ("profile appears to be
